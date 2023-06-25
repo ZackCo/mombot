@@ -76,11 +76,14 @@ async def register(interaction, name:str, solved_response:str, solution_string:s
         A comma-separated list of items and an NPC, i.e. "732 coins, 7 onions, sigismund". Please spell the items correctly, and end with an NPC or other hand-in location. Please note, if your hand-in is not an npc, the spelling cannot be validated.
     """
     #TODO: Check valid
-    sorted_items_npc = await sort_items_npc(solution_items_npc)
+    try:
+        sorted_items_npc = await sort_items_npc(solution_items_npc, ",", response=interaction.response)
+    except ValueError:
+        return
 
     # Do this so you can't tell if an entry has a string, items, or both.
     solution_string = solution_string or uuid.uuid4().hex
-    sorted_items_npc = solution_items_npc or uuid.uuid4().hex
+    sorted_items_npc = sorted_items_npc or uuid.uuid4().hex
 
     print(sorted_items_npc)
 
@@ -110,7 +113,7 @@ async def listen_for_message(message):
     content = discord.utils.remove_markdown(message.content)
 
     if content == "sync" and await mom.is_owner(message.author):
-        await sync()
+        await sync(message)
         return
     
     if not re.search(r"[^A-Z0-9]", content):
@@ -155,8 +158,11 @@ async def try_solution_string(message):
         return
     
 # Parse and sort a list of items so order doesn't matter
-async def sort_items_npc(message, delimeter):
-    elements = [re.sub(r'\s+', ' ', m) for m in message.content.split(delimeter)]
+async def sort_items_npc(text, delimeter, message=None, response=None):
+    if not text:
+        return
+
+    elements = [re.sub(r'\s+', ' ', m) for m in text.split(delimeter)]
     handin = clean(elements[len(elements) - 1])
 
     res = []
@@ -209,11 +215,15 @@ async def sort_items_npc(message, delimeter):
     
     if len(unknown_items) > 0 and len(found_items) > 0:
         if message.guild:
-            await message.add_reaction("❔")
+            if message:
+                await message.add_reaction("❔")
             return
         else:
             unknowns = ', '.join([f'{str(u["quantity"])} {u["item_name"]}' for u in unknown_items])
-            await message.reply(f"Unknown items: {unknowns}")
+            if message:
+                await message.reply(f"Unknown items: {unknowns}")
+            else:
+                await response.send_message(f"Unknown items: {unknowns}")
             return
         
     #TODO verify handin
@@ -221,8 +231,6 @@ async def sort_items_npc(message, delimeter):
     if len(unknown_items) == 0 and len(found_items) > 0:
         sorted_items = sorted(found_items, key=lambda i:int(i["id"]))
         result = "-".join([f"{si['quantity']}{si['item_name']}" for si in sorted_items]) + "--" + handin
-        #TODO remove
-        print(result)
         return result
     
     return
@@ -230,7 +238,29 @@ async def sort_items_npc(message, delimeter):
 # sort_items_npc("2 coal, 8 blue parthats, rope, diango", ",") == "2COAL-8BLUEPARTYHAT-1ROPE-DIANGO"
 
 async def try_solution_items(message, delimeter):
-    string = await sort_items_npc(message, delimeter)
+    content = await sort_items_npc(message.content, delimeter, message=message)
+
+    if not content:
+        return
+
+    h = hash(content)
+    q = Query()
+    result = solutions.search(q.hashed_solution_items == h)
+
+    if len(result) > 0:
+        res = result[0]
+        await message.add_reaction("✅")
+        await message.reply(cr.decrypt(res["secret_items"], content))
+        if message.author.id != res["author_id"] and res["first_solver"] == "":
+            solutions.update({
+                "first_solver" : message.author.name,
+                "first_solver_id" : message.author.id,
+                "first_solve_time" : datetime.now().isoformat()
+            }, q.hashed_solution_items == h)
+        return
+    else:
+        await message.add_reaction("❌")
+        return
 
 def main():
     mom.run(token)
