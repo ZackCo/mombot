@@ -75,19 +75,25 @@ async def register(interaction, name:str, solved_response:str, solution_string:s
     solution_items_npc:
         A comma-separated list of items and an NPC, i.e. "732 coins, 7 onions, sigismund". Please spell the items correctly, and end with an NPC or other hand-in location. Please note, if your hand-in is not an npc, the spelling cannot be validated.
     """
-    #TODO: Check valid
     try:
         sorted_items_npc = await sort_items_npc(solution_items_npc, ",", response=interaction.response)
     except ValueError:
         return
+    
+    solution = Query()
 
     # Do this so you can't tell if an entry has a string, items, or both.
     solution_string = solution_string or uuid.uuid4().hex
     sorted_items_npc = sorted_items_npc or uuid.uuid4().hex
 
-    print(sorted_items_npc)
+    hashed_solution_string = hash(solution_string)
+    hashed_solution_items =  hash(sorted_items_npc)
 
-    solutions.insert({
+    if solutions.search((solution.hashed_solution_string == hashed_solution_string) | (solution.hashed_solution_items == hashed_solution_items)):
+        await interaction.response.send_message(f"Solution already exists. Either update your previous puzzle, or choose a more complex solution.")
+        return
+
+    res = solutions.upsert({
         "name" : name,
         "author_id" : interaction.user.id,
         "author_name" : interaction.user.name,
@@ -98,15 +104,47 @@ async def register(interaction, name:str, solved_response:str, solution_string:s
         "first_solver" : "",
         "first_solver_id" : "",
         "first_solve_time" : ""
-    })
-    await interaction.response.send_message(f"Registered {name}!")
+    }, (solution.author_id == interaction.user.id) & (solution.name.matches(name, flags=re.IGNORECASE)))
+    if not res:
+        await interaction.response.send_message(f"Registered {name}!")
+    else:
+        await interaction.response.send_message(f"Updated {name}!")
 
 @mom.tree.command(name = "list")
 async def list(interaction):
     """
     List all my puzzles
     """
-    await interaction.response.send_message("fds")
+    q = Query()
+    my_puzzles = solutions.search(q.author_id == interaction.user.id)
+    if len(my_puzzles) == 0:
+        await interaction.response.send_message("No clues found.")
+        return
+    
+    res = []
+    for p in my_puzzles:
+        line = f"{p['name']}"
+        if p['first_solver']:
+            line += f" - First solved by {p['first_solver']}"
+        else:
+            line += " - Unsolved"
+        res.append(line)
+    await interaction.response.send_message("\n".join(res))
+
+@mom.tree.command(name = "delete")
+async def list(interaction, name:str):
+    """
+    Delete my puzzle by name.
+    """
+    q = Query()
+    my_puzzle = solutions.search((q.author_id == interaction.user.id) & (q.name.matches(name, flags=re.IGNORECASE)))
+    if len(my_puzzle) == 0:
+        await interaction.response.send_message(f"No clue found with name {name}.")
+        return
+    
+    for p in my_puzzle:
+        solutions.remove((q.author_id == interaction.user.id) & (q.name == p["name"]))
+    await interaction.response.send_message(f"Deleted {name}.")
 
 @mom.listen('on_message')
 async def listen_for_message(message):
