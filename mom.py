@@ -9,7 +9,7 @@ from pathlib import Path
 
 import cryptocode as cr
 import uuid
-import common as cmn
+import util
 
 from datetime import datetime
 
@@ -160,7 +160,7 @@ async def sync(message: discord.Message):
     await message.add_reaction("🔁")
 
 async def try_solution_string(message: discord.Message):
-    content = cmn.clean(message.content)
+    content = util.clean(message.content)
     
     h = hash(content)
     q = Query()
@@ -187,7 +187,7 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
         return
 
     elements = [re.sub(r'\s+', ' ', m) for m in text.split(delimeter)]
-    handin = cmn.clean(elements[len(elements) - 1])
+    handin = util.clean(elements[len(elements) - 1])
 
     res = []
 
@@ -199,12 +199,12 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
             n = w2n.word_to_num(possible_number)
             res.append({
                 "quantity" : n,
-                "item_name" : cmn.clean(frags[1])
+                "item_name" : util.clean(frags[1])
             })
         except ValueError:
             res.append({
                 "quantity" : 1,
-                "item_name" : cmn.clean(el)
+                "item_name" : util.clean(el)
             })
     
     found_items = []
