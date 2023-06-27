@@ -1,62 +1,49 @@
 import discord
-from discord import app_commands
-from discord.ext.commands import dm_only
 from discord.ext import commands
-
 from tinydb import TinyDB, Query
 
 import shutil
 import json
 import re
+from pathlib import Path
 
-import hashlib
 import cryptocode as cr
 import uuid
+import util
 
 from datetime import datetime
 
 from word2number import w2n
 
-test_guild = 0
-token = ""
-solutions = TinyDB("solutions.json")
-items = json.load(open("items.json"))
-
-try:
-    with open("credentials.json") as c:
-        credentials = json.load(c)
-        token = credentials["token"]
-        if token == "REPLACE_WITH_TOKEN":
-            print("Replace your token in credentials.json with your discord bot's token")
-        print(f"Running with token {token[0:3]}...")
-        print(credentials["test_guild"])
-        if credentials["test_guild"]:
-            test_guild = credentials["test_guild"]
-except IOError:
-    shutil.copy2("credentials_template.json", "credentials.json")
-
-# Clue logic below
-
-# Hash a string
-def hash(s):
-    if s == None:
-        return ""
-    return hashlib.sha256(clean(s).encode("UTF-8")).hexdigest()
-
-def clean(s):
-    if s == None:
-        return ""
-    return s.replace(" ", "").upper()
-
-# Discord stuff below
-
+# Discord Setup
 intents = discord.Intents.default()
 intents.message_content = True
-
 mom = commands.Bot(intents=intents, command_prefix="/")
 
+solutions = TinyDB("solutions.json")
+
+# Load items
+with open("items.json") as fp:
+    items = json.load(fp)
+
+# Credentials
+credentialsPath = Path("credentials.json")
+if not credentialsPath.exists():
+    shutil.copy2("credentials_template.json", "credentials.json")
+
+with open(credentialsPath) as fp:
+    credentials = json.load(fp)
+
+token = credentials.get("token", "")
+if not token or token == "REPLACE_WITH_TOKEN":
+    print("Replace your token in credentials.json with your discord bot's token")
+    exit()
+
+test_guild = credentials.get("test", 0)
+print(f"Using test guild value {test_guild}")
+
 @mom.tree.command(name = "register")
-async def register(interaction, name:str, solved_response:str, solution_string:str = None, solution_items_npc:str = None):
+async def register(interaction: discord.Interaction, name: str, solved_response: str, solution_string: str = None, solution_items_npc: str = None):
     """
     Register a new puzzle. Only use this in DMs! Please provide at least one solution text.
     
@@ -106,7 +93,7 @@ async def register(interaction, name:str, solved_response:str, solution_string:s
     await interaction.response.send_message(f"Registered {name}!")
 
 @mom.tree.command(name = "list")
-async def list(interaction):
+async def list(interaction: discord.Interaction):
     """
     List all my puzzles
     """
@@ -127,7 +114,7 @@ async def list(interaction):
     await interaction.response.send_message("\n".join(res))
 
 @mom.tree.command(name = "delete")
-async def list(interaction, name:str):
+async def list(interaction: discord.Interaction, name: str):
     """
     Delete my puzzle by name.
     """
@@ -142,7 +129,7 @@ async def list(interaction, name:str):
     await interaction.response.send_message(f"Deleted {name}.")
 
 @mom.listen('on_message')
-async def listen_for_message(message):
+async def listen_for_message(message: discord.Message):
     content = discord.utils.remove_markdown(message.content)
 
     if content == "sync" and await mom.is_owner(message.author):
@@ -159,8 +146,7 @@ async def listen_for_message(message):
     if content.count("\n") > 0:
         await try_solution_items(message, "\n")
 
-
-async def sync(message):
+async def sync(message: discord.Message):
     guild = mom.get_guild(test_guild)
     if guild != None:
         mom.tree.copy_global_to(guild=guild)
@@ -168,8 +154,8 @@ async def sync(message):
     print("Synced commands to " + str(guild))
     await message.add_reaction("🔁")
 
-async def try_solution_string(message):
-    content = clean(message.content)
+async def try_solution_string(message: discord.Message):
+    content = util.clean(message.content)
     
     h = hash(content)
     q = Query()
@@ -191,12 +177,12 @@ async def try_solution_string(message):
         return
     
 # Parse and sort a list of items so order doesn't matter
-async def sort_items_npc(text, delimeter, message=None, response=None):
+async def sort_items_npc(text: str, delimeter: str, message: str = None, response: str = None):
     if not text:
         return
 
     elements = [re.sub(r'\s+', ' ', m) for m in text.split(delimeter)]
-    handin = clean(elements[len(elements) - 1])
+    handin = util.clean(elements[len(elements) - 1])
 
     res = []
 
@@ -208,12 +194,12 @@ async def sort_items_npc(text, delimeter, message=None, response=None):
             n = w2n.word_to_num(possible_number)
             res.append({
                 "quantity" : n,
-                "item_name" : clean(frags[1])
+                "item_name" : util.clean(frags[1])
             })
         except ValueError:
             res.append({
                 "quantity" : 1,
-                "item_name" : clean(el)
+                "item_name" : util.clean(el)
             })
     
     found_items = []
@@ -272,7 +258,7 @@ async def sort_items_npc(text, delimeter, message=None, response=None):
 
 # sort_items_npc("2 coal, 8 blue partyhats, rope, diango", ",") == "2COAL-8BLUEPARTYHAT-1ROPE-DIANGO"
 
-async def try_solution_items(message, delimeter):
+async def try_solution_items(message: str, delimeter: str):
     content = await sort_items_npc(message.content, delimeter, message=message)
 
     if not content:
@@ -298,6 +284,7 @@ async def try_solution_items(message, delimeter):
         return
 
 def main():
+    print(f"Running with token {token[:3]}...")
     mom.run(token)
 
 if __name__ == "__main__":
