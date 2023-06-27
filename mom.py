@@ -55,10 +55,6 @@ intents.message_content = True
 
 mom = commands.Bot(intents=intents, command_prefix="/")
 
-# @mom.event
-# async def on_interaction(interaction):
-#     print(interaction)
-
 @mom.tree.command(name = "register")
 async def register(interaction, name:str, solved_response:str, solution_string:str = None, solution_items_npc:str = None):
     """
@@ -88,9 +84,10 @@ async def register(interaction, name:str, solved_response:str, solution_string:s
 
     hashed_solution_string = hash(solution_string)
     hashed_solution_items =  hash(sorted_items_npc)
-
-    if solutions.search((solution.hashed_solution_string == hashed_solution_string) | (solution.hashed_solution_items == hashed_solution_items)):
-        await interaction.response.send_message(f"Solution already exists. Either update your previous puzzle, or choose a more complex solution.")
+    
+    existing = solutions.search((solution.hashed_solution_string == hashed_solution_string) | (solution.hashed_solution_items == hashed_solution_items))
+    if existing:
+        await interaction.response.send_message(f"Solution \"{existing[0]['name']}\" already exists. Either update your previous puzzle, or choose a more complex solution.")
         return
 
     res = solutions.upsert({
@@ -105,10 +102,8 @@ async def register(interaction, name:str, solved_response:str, solution_string:s
         "first_solver_id" : "",
         "first_solve_time" : ""
     }, (solution.author_id == interaction.user.id) & (solution.name.matches(name, flags=re.IGNORECASE)))
-    if not res:
-        await interaction.response.send_message(f"Registered {name}!")
-    else:
-        await interaction.response.send_message(f"Updated {name}!")
+
+    await interaction.response.send_message(f"Registered {name}!")
 
 @mom.tree.command(name = "list")
 async def list(interaction):
@@ -154,7 +149,7 @@ async def listen_for_message(message):
         await sync(message)
         return
     
-    if not re.search(r"[^A-Z0-9]", content):
+    if content and not re.search(r"[^A-Z0-9]", content) and len(content) >= 10:
         await try_solution_string(message)
         return
     
@@ -252,7 +247,7 @@ async def sort_items_npc(text, delimeter, message=None, response=None):
         return
     
     if len(unknown_items) > 0 and len(found_items) > 0:
-        if message.guild:
+        if message and message.guild:
             if message:
                 await message.add_reaction("❔")
             return
@@ -262,6 +257,8 @@ async def sort_items_npc(text, delimeter, message=None, response=None):
                 await message.reply(f"Unknown items: {unknowns}")
             else:
                 await response.send_message(f"Unknown items: {unknowns}")
+                # Only throw error if we are registering.
+                raise ValueError("Item not found.")
             return
         
     #TODO verify handin
@@ -273,7 +270,7 @@ async def sort_items_npc(text, delimeter, message=None, response=None):
     
     return
 
-# sort_items_npc("2 coal, 8 blue parthats, rope, diango", ",") == "2COAL-8BLUEPARTYHAT-1ROPE-DIANGO"
+# sort_items_npc("2 coal, 8 blue partyhats, rope, diango", ",") == "2COAL-8BLUEPARTYHAT-1ROPE-DIANGO"
 
 async def try_solution_items(message, delimeter):
     content = await sort_items_npc(message.content, delimeter, message=message)
