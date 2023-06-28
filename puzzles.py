@@ -23,7 +23,10 @@ class PuzzleManager:
             return pickle.load(fp)
 
     def _save(self) -> None:
-        with open(self.localFilePath, "w") as fp:
+        with open(self.solvedPuzzlesPath, "w") as fp:
+            pickle.dump(self.solvedPuzzles, fp)
+
+        with open(self.activePuzzlesPath, "w") as fp:
             pickle.dump(self.puzzleQueue, fp)
 
     def checkMatchingHashes(self, newPuzzle: 'Puzzle') -> bool:
@@ -32,7 +35,7 @@ class PuzzleManager:
                 return True
         return False
     
-    def getOwnerPuzzles(self, authorID: int, nameMatch: str = "") -> list['Puzzle']:
+    def getAuthorPuzzles(self, authorID: int, nameMatch: str = "") -> list['Puzzle']:
         matches = []
         for puzzle in self.solvedPuzzles + self.puzzleQueue:
             if authorID != puzzle.authorID:
@@ -53,6 +56,7 @@ class PuzzleManager:
     
     def register(self, newPuzzle: 'Puzzle') -> int:
         self.puzzleQueue.append(newPuzzle)
+        self._save()
         return len(self.puzzleQueue)
     
     def delete(self, puzzle: 'Puzzle') -> bool:
@@ -60,6 +64,7 @@ class PuzzleManager:
             return False
         
         self.puzzleQueue.remove(puzzle)
+        self._save()
         return True
     
     def solved(self, puzzle: 'Puzzle', authorName: str, authorID: int) -> None:
@@ -67,6 +72,7 @@ class PuzzleManager:
         solvedPuzzle = self.puzzleQueue.pop(solveIndex)
         solvedPuzzle.solved(authorName, authorID)
         self.solvedPuzzles.append(solvedPuzzle)
+        self._save()
 
 class Puzzle:
     def __init__(self, name: str, authorID: int, authorName: str, solutionString: str, sortedItemsNPC: str, solvedResponse: str) -> 'Puzzle':
