@@ -1,6 +1,5 @@
 import discord
 from discord.ext import commands
-from tinydb import TinyDB, Query
 
 import shutil
 import json
@@ -8,12 +7,9 @@ import re
 from pathlib import Path
 
 import cryptocode as cr
-import util
-
-from datetime import datetime
-
 from word2number import w2n
 
+import util
 from puzzles import PuzzleManager, Puzzle
 
 # Discord Setup
