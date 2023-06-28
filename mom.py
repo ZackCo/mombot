@@ -81,7 +81,7 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
         3: "rd"
     }
 
-    await interaction.response.send_message(f"Registered {puzzle.name}, it is {suffix.get(queuePos, 'th')} in queue!")
+    await interaction.response.send_message(f"Registered {puzzle.name}, it is {queuePos}{suffix.get(queuePos, 'th')} in queue!")
 
 @mom.tree.command(name = "list")
 async def list(interaction: discord.Interaction):
@@ -132,7 +132,11 @@ async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: 
 async def listen_for_message(message: discord.Message):
     content = discord.utils.remove_markdown(message.content)
 
-    # Check if "sync" command was used
+    # Ignore messages from ourself
+    if message.author.id == mom.user.id:
+        return
+
+    # Check if "sync" command was used and run by bot owner
     if content == "sync" and await mom.is_owner(message.author):
         await sync(message)
         return
@@ -140,7 +144,7 @@ async def listen_for_message(message: discord.Message):
     # Message is all uppercase and numbers
     if len(content) >= 10 and not re.search(r"[^A-Z0-9]", content):
         content = util.clean(message.content)
-        await try_solution(message, content)
+        await try_solution(message, content, True)
         return
     
     for delimeter in (",", "\n"):
@@ -148,21 +152,21 @@ async def listen_for_message(message: discord.Message):
             continue
 
         splitContent = await sort_items_npc(content, delimeter, message=message)
-        await try_solution(message, splitContent)
+        await try_solution(message, splitContent, False)
 
-async def try_solution(message: discord.Message, cleanedContent: str, matchSolutionHash: bool):
-    solutionMatch = puzzleManager.getSolutionmatches(cleanedContent, matchSolutionHash)
+async def try_solution(message: discord.Message, cleanedContent: str, matchSolutionString: bool):
+    solutionMatch = puzzleManager.getSolutionmatches(cleanedContent, matchSolutionString)
     if solutionMatch is None:
         await message.add_reaction("❌")
         return
     
     if solutionMatch.authorID == message.author.id:
-        await message.add_reaction(":interrobang:") # Solved their own puzzle?
+        await message.add_reaction("⭐") # Solved their own puzzle?
         return
     
     await message.add_reaction("✅")
     await message.reply(cr.decrypt(solutionMatch.secretString, cleanedContent))
-    puzzleManager.solved(solutionMatch)
+    puzzleManager.solved(solutionMatch, message.author.name, message.author.id)
     
 async def sync(message: discord.Message):
     guild = mom.get_guild(test_guild)
@@ -178,7 +182,7 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
         return
 
     elements = [re.sub(r'\s+', ' ', m) for m in text.split(delimeter)]
-    handin = util.clean(elements[:-1])
+    handin = util.clean(elements[-1])
 
     res = []
 
@@ -254,7 +258,10 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
 
 def main():
     print(f"Running with token {token[:3]}...")
-    mom.run(token)
+    try:
+        mom.run(token)
+    except KeyboardInterrupt:
+        puzzleManager.exit()
 
 if __name__ == "__main__":
     main()
