@@ -58,6 +58,10 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     solution_items_npc:
         A comma-separated list of items and an NPC, i.e. "732 coins, 7 onions, sigismund". Please spell the items correctly, and end with an NPC or other hand-in location. Please note, if your hand-in is not an npc, the spelling cannot be validated.
     """
+    if solved_response.count('\n') > 3:
+        await interaction.response.send_message("Please keep solutions under 4 messages long.")
+        return
+
     try:
         sorted_items_npc = await sort_items_npc(solution_items_npc, ",", response=interaction.response)
     except ValueError:
@@ -72,8 +76,9 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     hashed_solution_string = hash(solution_string)
     hashed_solution_items =  hash(sorted_items_npc)
     
+    updating = solutions.search((solution.author_id == interaction.user.id) & (solution.name == name))
     existing = solutions.search((solution.hashed_solution_string == hashed_solution_string) | (solution.hashed_solution_items == hashed_solution_items))
-    if existing:
+    if existing and not updating:
         await interaction.response.send_message(f"Solution \"{existing[0]['name']}\" already exists. Either update your previous puzzle, or choose a more complex solution.")
         return
 
@@ -90,7 +95,10 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
         "first_solve_time" : ""
     }, (solution.author_id == interaction.user.id) & (solution.name.matches(name, flags=re.IGNORECASE)))
 
-    await interaction.response.send_message(f"Registered {name}!")
+    if updating:
+        await interaction.response.send_message(f"Updated {name}!")
+    else:
+        await interaction.response.send_message(f"Registered {name}!")
 
 @mom.tree.command(name = "list")
 async def list(interaction: discord.Interaction):
@@ -164,7 +172,7 @@ async def try_solution_string(message: discord.Message):
     if len(result) > 0:
         res = result[0]
         await message.add_reaction("✅")
-        await message.reply(cr.decrypt(res["secret_string"], content))
+        await solve_step(message, cr.decrypt(res["secret_string"], content))
         if message.author.id != res["author_id"] and res["first_solver"] == "":
             solutions.update({
                 "first_solver" : message.author.name,
@@ -196,7 +204,7 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
                 "quantity" : n,
                 "item_name" : util.clean(frags[1])
             })
-        except ValueError:
+        except (ValueError, IndexError):
             res.append({
                 "quantity" : 1,
                 "item_name" : util.clean(el)
@@ -271,7 +279,7 @@ async def try_solution_items(message: str, delimeter: str):
     if len(result) > 0:
         res = result[0]
         await message.add_reaction("✅")
-        await message.reply(cr.decrypt(res["secret_items"], content))
+        await solve_step(message, cr.decrypt(res["secret_items"], content))
         if message.author.id != res["author_id"] and res["first_solver"] == "":
             solutions.update({
                 "first_solver" : message.author.name,
@@ -282,6 +290,11 @@ async def try_solution_items(message: str, delimeter: str):
     else:
         await message.add_reaction("❌")
         return
+    
+async def solve_step(message: discord.Message, solved_text: str):
+    solved_messages = solved_text.split("\\n")
+    for solved_message in solved_messages:
+        await message.reply(solved_message)
 
 def main():
     print(f"Running with token {token[:3]}...")

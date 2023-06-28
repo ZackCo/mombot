@@ -1,4 +1,5 @@
 import hashlib
+import re
 
 def hash(string: str) -> str:
     if string == None:
@@ -8,4 +9,4 @@ def hash(string: str) -> str:
 def clean(string: str) -> str:
     if string == None:
         return ""
-    return string.replace(" ", "").upper()
+    return re.sub(r"[^A-Za-z0-9]", "", string).strip().upper()
