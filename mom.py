@@ -88,7 +88,7 @@ async def list(interaction: discord.Interaction):
     """
     List all my puzzles
     """
-    authorPuzzles = puzzleManager.getOwnerPuzzles(interaction.user.id)
+    authorPuzzles = puzzleManager.getAuthorPuzzles(interaction.user.id)
     if not authorPuzzles:
         await interaction.response.send_message("No clues found.")
         return
@@ -100,7 +100,7 @@ async def delete(interaction: discord.Interaction, name: str):
     """
     Delete my puzzle by name.
     """
-    foundPuzzles = puzzleManager.getOwnerPuzzles(interaction.user.id, name)
+    foundPuzzles = puzzleManager.getAuthorPuzzles(interaction.user.id, name)
     if not foundPuzzles:
         await interaction.response.send_message(f"No clue found with name {name}.")
         return
