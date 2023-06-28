@@ -12,21 +12,21 @@ class PuzzleManager:
         self.solvedPuzzles = self._load(self.solvedPuzzlesPath)
         self.puzzleQueue = self._load(self.activePuzzlesPath)
 
-    def __del__(self) -> None:
+    def exit(self) -> None:
         self._save()
 
     def _load(self, filePath: Path) -> list['Puzzle']:
         if not filePath.exists():
             return []
         
-        with open(filePath) as fp:
+        with open(filePath, "rb") as fp:
             return pickle.load(fp)
 
     def _save(self) -> None:
-        with open(self.solvedPuzzlesPath, "w") as fp:
+        with open(self.solvedPuzzlesPath, "wb") as fp:
             pickle.dump(self.solvedPuzzles, fp)
 
-        with open(self.activePuzzlesPath, "w") as fp:
+        with open(self.activePuzzlesPath, "wb") as fp:
             pickle.dump(self.puzzleQueue, fp)
 
     def checkMatchingHashes(self, newPuzzle: 'Puzzle') -> bool:
@@ -46,10 +46,10 @@ class PuzzleManager:
 
         return matches
     
-    def getSolutionmatches(self, unhashedContent: str, matchSolutionHash: bool) -> 'Puzzle' | None:
+    def getSolutionmatches(self, unhashedContent: str, matchSolutionString: bool) -> 'Puzzle':
         hashedContent = hash(unhashedContent)
         for puzzle in self.puzzleQueue:
-            if puzzle.checkSolution(hashedContent, matchSolutionHash):
+            if puzzle.checkSolution(hashedContent, matchSolutionString):
                 return puzzle
 
         return None
@@ -84,6 +84,8 @@ class Puzzle:
         self.solutionString = solutionString or uuid4().hex
         self.sortedItemsNPC = sortedItemsNPC or uuid4().hex
 
+        print(f"Saving puzzle with solns {solutionString} and {sortedItemsNPC}")
+
         self.hashedSolutionString = hash(self.solutionString)
         self.hashedSolutionItems = hash(self.sortedItemsNPC)
 
@@ -105,9 +107,11 @@ class Puzzle:
         
         return self.hashedSolutionString == other.hashedSolutionString and self.hashedSolutionItems == other.hashedSolutionItems
 
-    def checkSolution(self, hashedContent: int, matchSolutionHash: bool) -> bool:
-        if matchSolutionHash:
+    def checkSolution(self, hashedContent: int, matchSolutionString: bool) -> bool:
+        if matchSolutionString:
+            print(f"Str received: {hashedContent}, actual: {self.hashedSolutionString}")
             return hashedContent == self.hashedSolutionString
+        print(f"Items received: {hashedContent}, actual: {self.hashedSolutionItems}")
         return hashedContent == self.hashedSolutionItems
     
     def solved(self, authorName: str, authorID: int):
