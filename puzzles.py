@@ -81,17 +81,17 @@ class Puzzle:
         self.authorName = authorName
 
         # Do this so you can't tell if an entry has a string, items, or both.
-        self.solutionString = solutionString or uuid4().hex
-        self.sortedItemsNPC = sortedItemsNPC or uuid4().hex
+        solutionString = solutionString or uuid4().hex
+        sortedItemsNPC = sortedItemsNPC or uuid4().hex
 
         print(f"Saving puzzle with solns {solutionString} and {sortedItemsNPC}")
 
-        self.hashedSolutionString = hash(self.solutionString)
-        self.hashedSolutionItems = hash(self.sortedItemsNPC)
+        self.hashedSolutionString = hash(solutionString)
+        self.hashedSolutionItems = hash(sortedItemsNPC)
 
         self.solvedResponse = solvedResponse
-        self.secretString = cr.encrypt(solvedResponse, self.solutionString)
-        self.secretItems = cr.encrypt(solvedResponse, self.sortedItemsNPC)
+        self.secretString = cr.encrypt(solvedResponse, solutionString)
+        self.secretItems = cr.encrypt(solvedResponse, sortedItemsNPC)
 
         self.firstSolver = None
         self.firstSolverID = None
@@ -114,6 +114,9 @@ class Puzzle:
         print(f"Items received: {hashedContent}, actual: {self.hashedSolutionItems}")
         return hashedContent == self.hashedSolutionItems
     
+    def decrypt(self, key: str) -> str:
+        return cr.decrypt(self.secretString, key)
+
     def solved(self, authorName: str, authorID: int):
         self.firstSolver = authorName
         self.firstSolverID = authorID

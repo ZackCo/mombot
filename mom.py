@@ -6,7 +6,6 @@ import json
 import re
 from pathlib import Path
 
-import cryptocode as cr
 from word2number import w2n
 
 import util
@@ -141,7 +140,7 @@ async def try_solution(message: discord.Message, cleanedContent: str, matchSolut
         return
     
     await message.add_reaction("✅")
-    await message.reply(cr.decrypt(solutionMatch.secretString, cleanedContent))
+    await message.reply(solutionMatch.decrypt(cleanedContent))
     puzzleManager.solved(solutionMatch, message.author.name, message.author.id)
     
 async def sync(message: discord.Message):
