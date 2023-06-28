@@ -3,6 +3,7 @@ from pathlib import Path
 import cryptocode as cr
 import pickle
 from datetime import datetime
+import util
 
 class PuzzleManager:
     def __init__(self, solvedPuzzlesFile: str = "solvedPuzzles.pickle", activePuzzlesFile: str = "activePuzzles.pickle") -> 'PuzzleManager':
@@ -47,7 +48,7 @@ class PuzzleManager:
         return matches
     
     def getSolutionmatches(self, unhashedContent: str, matchSolutionString: bool) -> 'Puzzle':
-        hashedContent = hash(unhashedContent)
+        hashedContent = util.hash(unhashedContent)
         for puzzle in self.puzzleQueue:
             if puzzle.checkSolution(hashedContent, matchSolutionString):
                 return puzzle
@@ -84,10 +85,8 @@ class Puzzle:
         solutionString = solutionString or uuid4().hex
         sortedItemsNPC = sortedItemsNPC or uuid4().hex
 
-        print(f"Saving puzzle with solns {solutionString} and {sortedItemsNPC}")
-
-        self.hashedSolutionString = hash(solutionString)
-        self.hashedSolutionItems = hash(sortedItemsNPC)
+        self.hashedSolutionString = util.hash(solutionString)
+        self.hashedSolutionItems = util.hash(sortedItemsNPC)
 
         self.solvedResponse = solvedResponse
         self.secretString = cr.encrypt(solvedResponse, solutionString)
@@ -109,9 +108,7 @@ class Puzzle:
 
     def checkSolution(self, hashedContent: int, matchSolutionString: bool) -> bool:
         if matchSolutionString:
-            print(f"Str received: {hashedContent}, actual: {self.hashedSolutionString}")
             return hashedContent == self.hashedSolutionString
-        print(f"Items received: {hashedContent}, actual: {self.hashedSolutionItems}")
         return hashedContent == self.hashedSolutionItems
     
     def decrypt(self, key: str) -> str:
