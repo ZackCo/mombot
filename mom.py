@@ -68,9 +68,6 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     except ValueError:
         return
     
-    util.try_repair_hash(solutions, solution_string)
-    util.try_repair_hash(solutions, sorted_items_npc)
-    
     solution = Query()
 
     # Do this so you can't tell if an entry has a string, items, or both.
@@ -80,7 +77,7 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     hashed_solution_string = hash(solution_string)
     hashed_solution_items =  hash(sorted_items_npc)
     
-    updating = solutions.search((solution.author_id == interaction.user.id) & (unobscure(solution.name) == name))
+    updating = solutions.search((solution.author_id == interaction.user.id) & solution.name.test(lambda s:unobscure(s).upper() == name.upper()))
     existing = solutions.search((solution.hashed_solution_string == hashed_solution_string) | (solution.hashed_solution_items == hashed_solution_items))
     if existing and not updating:
         await interaction.response.send_message(f"Solution \"{existing[0]['name']}\" already exists. Either update your previous puzzle, or choose a more complex solution.")
@@ -94,10 +91,10 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
         "hashed_solution_items" : hash(sorted_items_npc),
         "secret_string" : cr.encrypt(solved_response, solution_string),
         "secret_items" : cr.encrypt(solved_response, sorted_items_npc),
-        "first_solver" : "",
-        "first_solver_id" : "",
-        "first_solve_time" : ""
-    }, (solution.author_id == interaction.user.id) & (unobscure(solution.name).upper() == name.upper()))
+        "first_solver" : updating[0]["first_solver"] if updating else "",
+        "first_solver_id" : updating[0]["first_solver_id"] if updating else "",
+        "first_solve_time" : updating[0]["first_solve_time"] if updating else ""
+    }, (solution.author_id == interaction.user.id) & solution.name.test(lambda s:unobscure(s).upper() == name.upper()))
 
     if updating:
         await interaction.response.send_message(f"Updated {name}!")
@@ -117,12 +114,13 @@ async def list(interaction: discord.Interaction):
     
     res = []
     for p in my_puzzles:
-        line = f"{p['name']}"
+        line = f"{unobscure(p['name'])}"
         if p['first_solver']:
             line += f" - First solved by {p['first_solver']}"
         else:
             line += " - Unsolved"
         res.append(line)
+
     await interaction.response.send_message("\n".join(res))
 
 @mom.tree.command(name = "delete")
@@ -131,7 +129,7 @@ async def list(interaction: discord.Interaction, name: str):
     Delete my puzzle by name.
     """
     solution = Query()
-    my_puzzle = solutions.search((solution.author_id == interaction.user.id) & (unobscure(solution.name).upper() == name.upper()))
+    my_puzzle = solutions.search((solution.author_id == interaction.user.id) & solution.name.test(lambda s:unobscure(s).upper() == name.upper()))
     if len(my_puzzle) == 0:
         await interaction.response.send_message(f"No clue found with name {name}.")
         return
@@ -168,8 +166,6 @@ async def sync(message: discord.Message):
 
 async def try_solution_string(message: discord.Message):
     content = util.clean(message.content)
-
-    util.try_repair_hash(solutions, content)
     
     h = hash(content)
     q = Query()
@@ -275,8 +271,6 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
 async def try_solution_items(message: str, delimeter: str):
     content = await sort_items_npc(message.content, delimeter, message=message)
 
-    util.try_repair_hash(solutions, content)
-
     if not content:
         return
 
@@ -304,7 +298,17 @@ async def solve_step(message: discord.Message, solved_text: str):
     for solved_message in solved_messages:
         await message.reply(solved_message)
 
+def migrate():
+    q = Query()
+    res = solutions.all()
+    print(solutions)
+    for r in res:
+        name = r['name']
+        ob = obscure(name)
+        solutions.update({'name': ob}, q.name == name)
+
 def main():
+    # migrate()
     print(f"Running with token {token[:3]}...")
     mom.run(token)
 

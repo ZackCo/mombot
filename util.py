@@ -26,4 +26,3 @@ def unobscure(string: str) -> str:
     Unobscure an obscured string.
     '''
     return cr.decrypt(string, ".")
-
