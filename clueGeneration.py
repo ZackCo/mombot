@@ -11,8 +11,9 @@ class ClueGenerator:
         self.output_path = output_path
         self.font_colour = (255, 255, 0)
 
-    def generate_clue(self, text_input: list[str], line_space: int = 2, scalar: int = 3, font_size: int = 48):
-        bg_image = pygame.transform.scale(self.bg_image, (self.bg_width * scalar, self.bg_height * scalar))
+    def generate_clue(self, text_input: list[str], line_space: int = 2, scalar: float = 1.0, font_size: int = 48):
+        # Scale normal image to 3x for normal appearance with font
+        bg_image = pygame.transform.scale(self.bg_image, (int(self.bg_width * 3 * scalar), (self.bg_height * 3 * scalar)))
         font = pygame.font.SysFont("Runescape Chat '07 Regular", font_size)
 
         rendered_text = [font.render(text, False, self.font_colour) for text in text_input]
@@ -28,3 +29,4 @@ class ClueGenerator:
             bg_image.blit(text, rct)
 
         pygame.image.save(bg_image, self.output_path)
+        return self.output_path
