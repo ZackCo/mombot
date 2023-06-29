@@ -34,6 +34,9 @@ class PuzzleManager:
         with open(self.save_data_file_path, "wb") as fp:
             pickle.dump(data, fp)
 
+    def get_active_puzzles(self) -> list['Puzzle']:
+        return self.active_puzzles
+
     def check_matching_hashes(self, newPuzzle: 'Puzzle') -> bool:
         for puzzle in self.active_puzzles:
             if puzzle.same_solution(newPuzzle):
@@ -76,10 +79,10 @@ class PuzzleManager:
         self._save()
         return True
     
-    def solved(self, puzzle: 'Puzzle', author_name: str, author_id: int) -> None:
+    def set_solved(self, puzzle: 'Puzzle', author_name: str, author_id: int) -> None:
         solve_index = self.active_puzzles.index(puzzle)
         solved_puzzle = self.active_puzzles.pop(solve_index)
-        solved_puzzle.solved(author_name, author_id)
+        solved_puzzle.set_solved(author_name, author_id)
         self.solved_puzzles.append(solved_puzzle)
         self._save()
 
@@ -104,8 +107,12 @@ class Puzzle:
         self.first_solver_id = None
         self.first_solve_time = None
 
+        self.thread_name = None
+        self.thread_id = None
+        self.thread_url = None
+
     def __str__(self):
-        solve_state = "Unsolved" if self.first_solver is None else f"First solved by: {self.first_solver}"
+        solve_state = "Unsolved" if not self.solved() else f"First solved by: {self.first_solver}"
         return f"{self.name} - {solve_state}"
 
     def same_solution(self, other: 'Puzzle') -> bool:
@@ -113,6 +120,12 @@ class Puzzle:
             raise TypeError
         
         return self.hashed_solution_string == other.hashed_solution_string and self.hashed_solution_items == other.hashed_solution_items
+
+    def has_thread(self) -> bool:
+        return any(param is not None for param in (self.thread_name, self.thread_id, self.thread_url))
+
+    def is_solved(self) -> bool:
+        return any(param is not None for param in (self.first_solver, self.first_solver_id, self.first_solve_time))
 
     def check_solution(self, hashed_content: int, match_solution_string: bool) -> bool:
         if match_solution_string:
@@ -122,7 +135,12 @@ class Puzzle:
     def decrypt(self, key: str) -> str:
         return cr.decrypt(self.secret_string, key).split("\\n")
 
-    def solved(self, author_name: str, author_id: int):
+    def set_solved(self, author_name: str, author_id: int) -> None:
         self.first_solver = author_name
         self.first_solver_id = author_id
         self.first_solve_time = datetime.now.isoformat()
+
+    def attach_thread(self, thread_name: str, thread_id: int, thread_url: str) -> None:
+        self.thread_name = thread_name
+        self.thread_id = thread_id
+        self.thread_url = thread_url

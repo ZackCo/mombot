@@ -36,7 +36,9 @@ if not token or token == "REPLACE_WITH_TOKEN":
     exit()
 
 test_guild = credentials.get("test_guild", 0)
+test_channel = credentials.get("test_channel", 0)
 print(f"Using test guild value {test_guild}")
+print(f"Using test channel value {test_channel}")
 
 @mom.tree.command(name = "register")
 async def register(interaction: discord.Interaction, name: str, solved_response: str, solution_string: str = None, solution_items_npc: str = None):
@@ -92,6 +94,17 @@ async def list(interaction: discord.Interaction):
     
     await interaction.response.send_message("\n".join(str(puzzle) for puzzle in author_puzzles))
 
+@mom.tree.command(name = "active")
+async def active(interaction: discord.Interaction):
+    """
+    List all active puzzles
+    """
+    active_puzzles = puzzle_manager.get_active_puzzles()
+    if not active_puzzles:
+        await interaction.response.send_message("No active puzzles.")
+    else:
+        await interaction.response.send_message("\n".join(f"{puzzle.name} - {puzzle.thread_url if puzzle.thread_url is not None else 'No thread'}" for puzzle in active_puzzles))
+
 @mom.tree.command(name = "delete")
 async def delete(interaction: discord.Interaction, name: str):
     """
@@ -105,9 +118,41 @@ async def delete(interaction: discord.Interaction, name: str):
     for puzzle in found_puzzles:
         success = puzzle_manager.delete(puzzle)
         if success:
-            await interaction.response.send_message(f"Deleted puzzle: {puzzle.name}.")
+            if puzzle.has_thread():
+                channel = mom.get_channel(test_channel)
+                thread = channel.get_thread(puzzle.thread_id)
+                await thread.edit(locked=True)
+            await interaction.response.send_message(f"Deleted puzzle {puzzle.name} and it's thread {puzzle.thread_name} has been locked.")
         else:
             await interaction.response.send_message(f"Failed to delete puzzle: {puzzle.name}.")
+
+@mom.tree.command(name = "create_thread")
+async def create_thread(interaction: discord.Interaction, clue_name: str, thread_name: str, message: str):
+    """
+    Create thread in the CTC discord
+    """
+    if not message.startswith("https://media.discordapp.net"):
+        await interaction.response.send_message(f"Message should be an image link.")
+        return
+
+    author_puzzles = puzzle_manager.get_author_puzzles(interaction.user.id, clue_name)
+    if not author_puzzles:
+        await interaction.response.send_message(f"You do not have a clue named {clue_name} registered. Check your registered clues with /list")
+        return
+    
+    puzzle_to_thread = author_puzzles[0] # Should be only 1 puzzle with this name
+    if puzzle_to_thread.has_thread():
+        await interaction.response.send_message(f"Thread already exists for this clue at: {puzzle_to_thread.thread_url}")
+        return
+
+    channel = mom.get_channel(test_channel)
+    thread = await channel.create_thread(name=thread_name)
+    await thread.send(f"Submitted by {interaction.user.mention}")
+    await thread.send(message)
+    # stats = await thread.send()
+    puzzle_to_thread.attach_thread(thread.name, thread.id, thread.jump_url)
+
+    await interaction.response.send_message(f"Thread has been created at {puzzle_to_thread.thread_url}")
 
 @mom.listen('on_message')
 async def listen_for_message(message: discord.Message):
@@ -155,7 +200,7 @@ async def try_solution(message: discord.Message, cleanedContent: str, matchSolut
     for solveMsg in solve_messages:
         await message.reply(solveMsg)
 
-    puzzle_manager.solved(solution_match, message.author.name, message.author.id)
+    puzzle_manager.set_solved(solution_match, message.author.name, message.author.id)
     
 async def sync(message: discord.Message):
     print(message.guild)
