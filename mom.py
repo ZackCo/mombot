@@ -25,7 +25,7 @@ intents.message_content = True
 mom = commands.Bot(intents=intents, command_prefix="/")
 
 solutions = TinyDB("solutions.json")
-clue_generator = ClueGenerator("blank_clue.png", "generated_clue.png")
+clue_generator = ClueGenerator("assets/blank_clue.png", "assets/RuneScape-Chat-07.ttf", "assets/generated_clue.png")
 
 # Load items
 with open("items.json") as fp:
@@ -145,10 +145,10 @@ async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: 
 
     Parameters:
     ----------
-    clue_text: str
+    clue_text:
         Text to appear on your clue. Add new lines with "\n".
     clue_scalar: float
-        Scale the background image. A larger reduces text size.
+        A larger values reduces text size.
     """
     text_list = [clue_text] if "\\n" not in clue_text else clue_text.split("\\n")
     generated_file_path = clue_generator.generate_clue(text_list, scalar=clue_scalar) 
