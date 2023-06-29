@@ -1,4 +1,6 @@
-import pygame
+import contextlib
+with contextlib.redirect_stdout(None):
+    import pygame
 
 class ClueGenerator:
     def __init__(self, bg_image_path: str, font_path: str, output_path: str):
