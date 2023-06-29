@@ -35,7 +35,7 @@ if not token or token == "REPLACE_WITH_TOKEN":
     print("Replace your token in credentials.json with your discord bot's token")
     exit()
 
-test_guild = credentials.get("test", 0)
+test_guild = credentials.get("test_guild", 0)
 print(f"Using test guild value {test_guild}")
 
 @mom.tree.command(name = "register")
@@ -146,7 +146,7 @@ async def listen_for_message(message: discord.Message):
         await try_solution(message, split_content, False)
 
 async def try_solution(message: discord.Message, cleanedContent: str, matchSolutionString: bool):
-    solution_match = puzzle_manager.getSolutionmatches(cleanedContent, matchSolutionString)
+    solution_match = puzzle_manager.get_solution_matches(cleanedContent, matchSolutionString)
     if solution_match is None:
         await message.add_reaction("❌")
         return
@@ -164,6 +164,7 @@ async def try_solution(message: discord.Message, cleanedContent: str, matchSolut
     puzzle_manager.solved(solution_match, message.author.name, message.author.id)
     
 async def sync(message: discord.Message):
+    print(message.guild)
     guild = mom.get_guild(test_guild)
     if guild != None:
         mom.tree.copy_global_to(guild=guild)

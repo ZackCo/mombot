@@ -6,19 +6,20 @@ from datetime import datetime
 import util
 
 class PuzzleManager:
-    def __init__(self, saveDataFile: str = "solutions.pickle") -> 'PuzzleManager':
-        self.saveDataFilePath = Path(saveDataFile)
+    def __init__(self, save_data_file: str = "solutions.pickle") -> 'PuzzleManager':
+        self.save_data_file_path = Path(save_data_file)
         self._load()
 
     def exit(self) -> None:
         self._save()
 
-    def _load(self, file_path: Path) -> list['Puzzle']:
-        if not file_path.exists():
+    def _load(self) -> list['Puzzle']:
+        if not self.save_data_file_path.exists():
             self.puzzle_queue = []
             self.solved_puzzles = []
+            return
         
-        with open(file_path, "rb") as fp:
+        with open(self.save_data_file_path, "rb") as fp:
             data = pickle.load(fp)
 
         self.puzzle_queue = data["puzzle_queue"]
@@ -30,7 +31,7 @@ class PuzzleManager:
             "solved_puzzles": self.solved_puzzles
         }
 
-        with open(self.saveDataFilePath, "wb") as fp:
+        with open(self.save_data_file_path, "wb") as fp:
             pickle.dump(data, fp)
 
     def check_matching_hashes(self, newPuzzle: 'Puzzle') -> bool:
@@ -114,8 +115,8 @@ class Puzzle:
         
         return self.hashed_solution_string == other.hashed_solution_string and self.hashed_solution_items == other.hashed_solution_items
 
-    def check_solution(self, hashed_content: int, matchsolution_string: bool) -> bool:
-        if matchsolution_string:
+    def check_solution(self, hashed_content: int, match_solution_string: bool) -> bool:
+        if match_solution_string:
             return hashed_content == self.hashed_solution_string
         return hashed_content == self.hashed_solution_items
     
