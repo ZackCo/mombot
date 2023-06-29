@@ -6,29 +6,32 @@ from datetime import datetime
 import util
 
 class PuzzleManager:
-    def __init__(self, solved_puzzles_file: str = "solvedPuzzles.pickle", active_puzzles_file: str = "activePuzzles.pickle") -> 'PuzzleManager':
-        self.solved_puzzles_path = Path(solved_puzzles_file)
-        self.active_puzzles_path = Path(active_puzzles_file)
-
-        self.solved_puzzles = self._load(self.solved_puzzles_path)
-        self.puzzle_queue = self._load(self.active_puzzles_path)
+    def __init__(self, saveDataFile: str = "solutions.pickle") -> 'PuzzleManager':
+        self.saveDataFilePath = Path(saveDataFile)
+        self._load()
 
     def exit(self) -> None:
         self._save()
 
     def _load(self, file_path: Path) -> list['Puzzle']:
         if not file_path.exists():
-            return []
+            self.puzzle_queue = []
+            self.solved_puzzles = []
         
         with open(file_path, "rb") as fp:
-            return pickle.load(fp)
+            data = pickle.load(fp)
+
+        self.puzzle_queue = data["puzzle_queue"]
+        self.solved_puzzles = data["solved_puzzles"]
 
     def _save(self) -> None:
-        with open(self.solved_puzzles_path, "wb") as fp:
-            pickle.dump(self.solved_puzzles, fp)
+        data = {
+            "puzzle_queue": self.puzzle_queue,
+            "solved_puzzles": self.solved_puzzles
+        }
 
-        with open(self.active_puzzles_path, "wb") as fp:
-            pickle.dump(self.puzzle_queue, fp)
+        with open(self.saveDataFilePath, "wb") as fp:
+            pickle.dump(data, fp)
 
     def check_matching_hashes(self, newPuzzle: 'Puzzle') -> bool:
         for puzzle in self.puzzle_queue:
