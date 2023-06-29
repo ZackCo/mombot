@@ -10,6 +10,7 @@ from pathlib import Path
 import cryptocode as cr
 import uuid
 import util
+from util import hash, obscure, unobscure
 
 from datetime import datetime
 
@@ -67,6 +68,9 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     except ValueError:
         return
     
+    util.try_repair_hash(solutions, solution_string)
+    util.try_repair_hash(solutions, sorted_items_npc)
+    
     solution = Query()
 
     # Do this so you can't tell if an entry has a string, items, or both.
@@ -76,14 +80,14 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     hashed_solution_string = hash(solution_string)
     hashed_solution_items =  hash(sorted_items_npc)
     
-    updating = solutions.search((solution.author_id == interaction.user.id) & (solution.name == name))
+    updating = solutions.search((solution.author_id == interaction.user.id) & (unobscure(solution.name) == name))
     existing = solutions.search((solution.hashed_solution_string == hashed_solution_string) | (solution.hashed_solution_items == hashed_solution_items))
     if existing and not updating:
         await interaction.response.send_message(f"Solution \"{existing[0]['name']}\" already exists. Either update your previous puzzle, or choose a more complex solution.")
         return
 
     res = solutions.upsert({
-        "name" : name,
+        "name" : obscure(name),
         "author_id" : interaction.user.id,
         "author_name" : interaction.user.name,
         "hashed_solution_string" : hash(solution_string),
@@ -93,7 +97,7 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
         "first_solver" : "",
         "first_solver_id" : "",
         "first_solve_time" : ""
-    }, (solution.author_id == interaction.user.id) & (solution.name.matches(name, flags=re.IGNORECASE)))
+    }, (solution.author_id == interaction.user.id) & (unobscure(solution.name).upper() == name.upper()))
 
     if updating:
         await interaction.response.send_message(f"Updated {name}!")
@@ -126,14 +130,14 @@ async def list(interaction: discord.Interaction, name: str):
     """
     Delete my puzzle by name.
     """
-    q = Query()
-    my_puzzle = solutions.search((q.author_id == interaction.user.id) & (q.name.matches(name, flags=re.IGNORECASE)))
+    solution = Query()
+    my_puzzle = solutions.search((solution.author_id == interaction.user.id) & (unobscure(solution.name).upper() == name.upper()))
     if len(my_puzzle) == 0:
         await interaction.response.send_message(f"No clue found with name {name}.")
         return
     
     for p in my_puzzle:
-        solutions.remove((q.author_id == interaction.user.id) & (q.name == p["name"]))
+        solutions.remove((solution.author_id == interaction.user.id) & (solution.name == p["name"]))
     await interaction.response.send_message(f"Deleted {name}.")
 
 @mom.listen('on_message')
@@ -164,6 +168,8 @@ async def sync(message: discord.Message):
 
 async def try_solution_string(message: discord.Message):
     content = util.clean(message.content)
+
+    util.try_repair_hash(solutions, content)
     
     h = hash(content)
     q = Query()
@@ -268,6 +274,8 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
 
 async def try_solution_items(message: str, delimeter: str):
     content = await sort_items_npc(message.content, delimeter, message=message)
+
+    util.try_repair_hash(solutions, content)
 
     if not content:
         return
