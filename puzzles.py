@@ -15,19 +15,19 @@ class PuzzleManager:
 
     def _load(self) -> list['Puzzle']:
         if not self.save_data_file_path.exists():
-            self.puzzle_queue = []
+            self.active_puzzles = []
             self.solved_puzzles = []
             return
         
         with open(self.save_data_file_path, "rb") as fp:
             data = pickle.load(fp)
 
-        self.puzzle_queue = data["puzzle_queue"]
+        self.active_puzzles = data["active_puzzles"]
         self.solved_puzzles = data["solved_puzzles"]
 
     def _save(self) -> None:
         data = {
-            "puzzle_queue": self.puzzle_queue,
+            "active_puzzles": self.active_puzzles,
             "solved_puzzles": self.solved_puzzles
         }
 
@@ -35,14 +35,14 @@ class PuzzleManager:
             pickle.dump(data, fp)
 
     def check_matching_hashes(self, newPuzzle: 'Puzzle') -> bool:
-        for puzzle in self.puzzle_queue:
+        for puzzle in self.active_puzzles:
             if puzzle.same_solution(newPuzzle):
                 return True
         return False
     
     def get_author_puzzles(self, author_id: int, name_match: str = "") -> list['Puzzle']:
         matches = []
-        for puzzle in self.solved_puzzles + self.puzzle_queue:
+        for puzzle in self.solved_puzzles + self.active_puzzles:
             if author_id != puzzle.author_id:
                 continue
             
@@ -53,33 +53,33 @@ class PuzzleManager:
     
     def get_solution_matches(self, unhashedContent: str, matchsolution_string: bool) -> 'Puzzle':
         hashedContent = util.hash(unhashedContent)
-        for puzzle in self.puzzle_queue:
+        for puzzle in self.active_puzzles:
             if puzzle.check_solution(hashedContent, matchsolution_string):
                 return puzzle
 
         return None
     
     def register(self, newPuzzle: 'Puzzle') -> int:
-        self.puzzle_queue.append(newPuzzle)
+        self.active_puzzles.append(newPuzzle)
         self._save()
-        return len(self.puzzle_queue)
+        return len(self.active_puzzles)
     
     def update(self, old_puzzle: 'Puzzle', new_puzzle: 'Puzzle') -> None:
-        replace_index = self.puzzle_queue.index(old_puzzle)
-        self.puzzle_queue[replace_index] = new_puzzle
+        replace_index = self.active_puzzles.index(old_puzzle)
+        self.active_puzzles[replace_index] = new_puzzle
         self._save()
     
     def delete(self, puzzle: 'Puzzle') -> bool:
-        if puzzle not in self.puzzle_queue: # Can only delete active puzzles, not solved ones
+        if puzzle not in self.active_puzzles: # Can only delete active puzzles, not solved ones
             return False
         
-        self.puzzle_queue.remove(puzzle)
+        self.active_puzzles.remove(puzzle)
         self._save()
         return True
     
     def solved(self, puzzle: 'Puzzle', author_name: str, author_id: int) -> None:
-        solve_index = self.puzzle_queue.index(puzzle)
-        solved_puzzle = self.puzzle_queue.pop(solve_index)
+        solve_index = self.active_puzzles.index(puzzle)
+        solved_puzzle = self.active_puzzles.pop(solve_index)
         solved_puzzle.solved(author_name, author_id)
         self.solved_puzzles.append(solved_puzzle)
         self._save()
