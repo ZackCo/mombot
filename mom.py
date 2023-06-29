@@ -17,7 +17,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 mom = commands.Bot(intents=intents, command_prefix="/")
 
-puzzleManager = PuzzleManager()
+puzzle_manager = PuzzleManager()
 
 # Clue Generation Properties
 blank_clue_path = Path("assets/blank_clue.png")
@@ -31,11 +31,11 @@ with open("items.json") as fp:
     items = json.load(fp)
 
 # Credentials
-credentialsPath = Path("credentials.json")
-if not credentialsPath.exists():
+credentials_path = Path("credentials.json")
+if not credentials_path.exists():
     shutil.copy2("credentials_template.json", "credentials.json")
 
-with open(credentialsPath) as fp:
+with open(credentials_path) as fp:
     credentials = json.load(fp)
 
 token = credentials.get("token", "")
@@ -62,50 +62,62 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     solution_items_npc:
         A comma-separated list of items and an NPC, i.e. "732 coins, 7 onions, sigismund". Please spell the items correctly, and end with an NPC or other hand-in location. Please note, if your hand-in is not an npc, the spelling cannot be validated.
     """
+    if solved_response.count('\n') > 3:
+        await interaction.response.send_message("Please keep solutions under 4 messages long.")
+        return
+    
     try:
         sorted_items_npc = await sort_items_npc(solution_items_npc, ",", response=interaction.response)
     except ValueError:
         return
     
     puzzle = Puzzle(name, interaction.user.id, interaction.user.name, solution_string, sorted_items_npc, solved_response)
+    
+    # Check for matching puzzles for updating
+    author_matching_puzzles = puzzle_manager.get_author_puzzles(interaction.user.id, puzzle.name)
+    if author_matching_puzzles:
+        puzzle_manager.update(author_matching_puzzles[0], puzzle) # List should be 1 long since puzzle names are unique
+        await interaction.response.send_message(f"Updated {puzzle.name}!")
+        return
 
-    if puzzleManager.checkMatchingHashes(puzzle):
+    # Check for existing puzzle solutions
+    if puzzle_manager.check_matching_hashes(puzzle):
         await interaction.response.send_message(f"Solution {puzzle.name} already exists. Either update your previous puzzle, or choose a more complex solution.")
         return
     
-    queuePos = puzzleManager.register(puzzle)
+    queue_pos = puzzle_manager.register(puzzle)
     suffix = {
         1: "st",
         2: "nd",
         3: "rd"
     }
 
-    await interaction.response.send_message(f"Registered {puzzle.name}, it is {queuePos}{suffix.get(queuePos, 'th')} in queue!")
+    await interaction.response.send_message(f"Registered {puzzle.name}, it is {queue_pos}{suffix.get(queue_pos, 'th')} in queue!")
 
 @mom.tree.command(name = "list")
 async def list(interaction: discord.Interaction):
     """
     List all my puzzles
     """
-    authorPuzzles = puzzleManager.getAuthorPuzzles(interaction.user.id)
-    if not authorPuzzles:
+    author_puzzles = puzzle_manager.get_author_puzzles(interaction.user.id)
+    if not author_puzzles:
         await interaction.response.send_message("No clues found.")
         return
     
-    await interaction.response.send_message("\n".join(str(puzzle) for puzzle in authorPuzzles))
+    await interaction.response.send_message("\n".join(str(puzzle) for puzzle in author_puzzles))
 
 @mom.tree.command(name = "delete")
 async def delete(interaction: discord.Interaction, name: str):
     """
     Delete my puzzle by name.
     """
-    foundPuzzles = puzzleManager.getAuthorPuzzles(interaction.user.id, name)
-    if not foundPuzzles:
+    found_puzzles = puzzle_manager.get_author_puzzles(interaction.user.id, name)
+    if not found_puzzles:
         await interaction.response.send_message(f"No clue found with name {name}.")
         return
     
-    for puzzle in foundPuzzles:
-        success = puzzleManager.delete(puzzle)
+    for puzzle in found_puzzles:
+        success = puzzle_manager.delete(puzzle)
         if success:
             await interaction.response.send_message(f"Deleted puzzle: {puzzle.name}.")
         else:
@@ -150,22 +162,30 @@ async def listen_for_message(message: discord.Message):
         if content.count(delimeter) <= 0:
             continue
 
-        splitContent = await sort_items_npc(content, delimeter, message=message)
-        await try_solution(message, splitContent, False)
+        try:
+            split_content = await sort_items_npc(content, delimeter, message=message)
+        except ValueError:
+            return
+        
+        await try_solution(message, split_content, False)
 
 async def try_solution(message: discord.Message, cleanedContent: str, matchSolutionString: bool):
-    solutionMatch = puzzleManager.getSolutionmatches(cleanedContent, matchSolutionString)
-    if solutionMatch is None:
+    solution_match = puzzle_manager.getSolutionmatches(cleanedContent, matchSolutionString)
+    if solution_match is None:
         await message.add_reaction("❌")
         return
     
-    if solutionMatch.authorID == message.author.id:
+    if solution_match.authorID == message.author.id:
         await message.add_reaction("⭐") # Solved their own puzzle?
         return
     
     await message.add_reaction("✅")
-    await message.reply(solutionMatch.decrypt(cleanedContent))
-    puzzleManager.solved(solutionMatch, message.author.name, message.author.id)
+
+    solve_messages = solution_match.decrypt(cleanedContent)
+    for solveMsg in solve_messages:
+        await message.reply(solveMsg)
+
+    puzzle_manager.solved(solution_match, message.author.name, message.author.id)
     
 async def sync(message: discord.Message):
     guild = mom.get_guild(test_guild)
@@ -195,7 +215,7 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
                 "quantity" : n,
                 "item_name" : util.clean(frags[1])
             })
-        except ValueError:
+        except (ValueError, IndexError):
             res.append({
                 "quantity" : 1,
                 "item_name" : util.clean(el)
@@ -260,7 +280,7 @@ def main():
     try:
         mom.run(token)
     except KeyboardInterrupt:
-        puzzleManager.exit()
+        puzzle_manager.exit()
 
 if __name__ == "__main__":
     main()
