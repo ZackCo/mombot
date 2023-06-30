@@ -16,7 +16,7 @@ from datetime import datetime
 
 from word2number import w2n
 
-from clueGeneration import ClueGenerator
+from cluegenerator import ClueGenerator
 
 # Discord Setup
 intents = discord.Intents.default()
@@ -62,7 +62,7 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     solution_items_npc:
         A comma-separated list of items and an NPC, i.e. "732 coins, 7 onions, sigismund". Please spell the items correctly, and end with an NPC or other hand-in location. Please note, if your hand-in is not an npc, the spelling cannot be validated.
     """
-    if solved_response.count('\n') > 3:
+    if solved_response.count('\\n') > 3:
         await interaction.response.send_message("Please keep solutions under 4 messages long.")
         return
 
@@ -158,6 +158,7 @@ async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: 
     
     with open(generated_file_path, "rb") as fp:
         await interaction.response.send_message(file=discord.File(fp))
+        # TODO: Can't get this to delete. Delete it.
 
 @mom.listen('on_message')
 async def listen_for_message(message: discord.Message):
