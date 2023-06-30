@@ -158,7 +158,8 @@ async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: 
     
     with open(generated_file_path, "rb") as fp:
         await interaction.response.send_message(file=discord.File(fp))
-        # TODO: Can't get this to delete. Delete it.
+        
+    generated_file_path.unlink()
 
 @mom.listen('on_message')
 async def listen_for_message(message: discord.Message):
