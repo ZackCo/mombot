@@ -59,10 +59,9 @@ class PuzzleManager:
 
         return None
     
-    def register(self, newPuzzle: 'Puzzle') -> int:
+    def register(self, newPuzzle: 'Puzzle') -> None:
         self.active_puzzles.append(newPuzzle)
         self._save()
-        return len(self.active_puzzles)
     
     def update(self, old_puzzle: 'Puzzle', new_puzzle: 'Puzzle') -> None:
         replace_index = self.active_puzzles.index(old_puzzle)
