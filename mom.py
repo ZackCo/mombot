@@ -77,14 +77,8 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
         await interaction.response.send_message(f"Solution {puzzle.name} already exists. Either update your previous puzzle, or choose a more complex solution.")
         return
     
-    queue_pos = puzzle_manager.register(puzzle)
-    suffix = {
-        1: "st",
-        2: "nd",
-        3: "rd"
-    }
-
-    await interaction.response.send_message(f"Registered {puzzle.name}, it is {queue_pos}{suffix.get(queue_pos, 'th')} in queue!")
+    puzzle_manager.register(puzzle)
+    await interaction.response.send_message(f"Registered {puzzle.name}!")
 
 @mom.tree.command(name = "list")
 async def list(interaction: discord.Interaction):
