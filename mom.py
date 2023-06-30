@@ -16,12 +16,15 @@ from datetime import datetime
 
 from word2number import w2n
 
+from clueGeneration import ClueGenerator
+
 # Discord Setup
 intents = discord.Intents.default()
 intents.message_content = True
 mom = commands.Bot(intents=intents, command_prefix="/")
 
 solutions = TinyDB("solutions.json")
+clue_generator = ClueGenerator("assets/blank_clue.png", "assets/RuneScape-Chat-07.ttf", "assets/generated_clue.png")
 
 # Load items
 with open("items.json") as fp:
@@ -137,6 +140,24 @@ async def list(interaction: discord.Interaction, name: str):
     for p in my_puzzle:
         solutions.remove((solution.author_id == interaction.user.id) & (solution.name == p["name"]))
     await interaction.response.send_message(f"Deleted {name}.")
+
+@mom.tree.command(name = "scroll")
+async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: float = 1.0):
+    """
+    Generate CTC looking scroll
+
+    Parameters:
+    ----------
+    clue_text:
+        Text to appear on your clue. Add new lines with "\n".
+    clue_scalar: float
+        A larger values reduces text size.
+    """
+    text_list = [clue_text] if "\\n" not in clue_text else clue_text.split("\\n")
+    generated_file_path = clue_generator.generate_clue(text_list, scalar=clue_scalar) 
+    
+    with open(generated_file_path, "rb") as fp:
+        await interaction.response.send_message(file=discord.File(fp))
 
 @mom.listen('on_message')
 async def listen_for_message(message: discord.Message):
