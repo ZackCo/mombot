@@ -5,6 +5,7 @@ from tinydb import TinyDB, Query
 import shutil
 import json
 import re
+import io
 from pathlib import Path
 
 import cryptocode as cr
@@ -24,7 +25,13 @@ intents.message_content = True
 mom = commands.Bot(intents=intents, command_prefix="/")
 
 solutions = TinyDB("solutions.json")
-clue_generator = ClueGenerator("assets/blank_clue.png", "assets/RuneScape-Chat-07.ttf", "assets/generated_clue.png")
+
+# Clue Generation Properties
+blank_clue_path = Path("assets/blank_clue.png")
+font_path = Path("assets/RuneScape-Chat-07.ttf")
+generated_clue_name = "generated_clue.png"
+
+clue_generator = ClueGenerator(blank_clue_path, font_path, generated_clue_name)
 
 # Load items
 with open("items.json") as fp:
@@ -154,12 +161,9 @@ async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: 
         A larger values reduces text size.
     """
     text_list = [clue_text] if "\\n" not in clue_text else clue_text.split("\\n")
-    generated_file_path = clue_generator.generate_clue(text_list, scalar=clue_scalar) 
+    img = clue_generator.generate_clue(text_list, scalar=clue_scalar) 
+    await interaction.response.send_message(file=discord.File(img, filename=generated_clue_name))
     
-    with open(generated_file_path, "rb") as fp:
-        await interaction.response.send_message(file=discord.File(fp))
-        # TODO: Can't get this to delete. Delete it.
-
 @mom.listen('on_message')
 async def listen_for_message(message: discord.Message):
     content = discord.utils.remove_markdown(message.content)
