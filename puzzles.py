@@ -96,17 +96,15 @@ class Puzzle:
         self.hashed_solution_string = util.hash(solution_string)
         self.hashed_solution_items = util.hash(sorted_items_npc)
 
-        self.solved_response = solved_response
         self.secret_string = cr.encrypt(solved_response, solution_string)
         self.secret_items = cr.encrypt(solved_response, sorted_items_npc)
 
         self.first_solver = None
         self.first_solver_id = None
         self.first_solve_time = None
-
-    def __str__(self):
-        solve_state = "Unsolved" if self.first_solver is None else f"First solved by: {self.first_solver}"
-        return f"{self.name} - {solve_state}"
+    
+    def get_solve_status(self) -> str:
+        return "Unsolved" if self.first_solver is None else f"First solved by: {self.first_solver}"
 
     def same_solution(self, other: 'Puzzle') -> bool:
         if type(self) != type(other):

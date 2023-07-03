@@ -10,6 +10,7 @@ from pathlib import Path
 from word2number import w2n
 
 import util
+from cluegenerator import ClueGenerator
 from puzzles import PuzzleManager, Puzzle
 
 # Discord Setup
@@ -98,7 +99,7 @@ async def list(interaction: discord.Interaction):
         await interaction.response.send_message("No clues found.")
         return
     
-    await interaction.response.send_message("\n".join(str(puzzle) for puzzle in author_puzzles))
+    await interaction.response.send_message("\n".join(f"{util.unobscure(puzzle.name)} - {puzzle.get_solve_status()}" for puzzle in author_puzzles))
 
 @mom.tree.command(name = "delete")
 async def delete(interaction: discord.Interaction, name: str):
