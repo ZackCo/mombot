@@ -143,4 +143,4 @@ class Puzzle:
     def solved(self, author_name: str, author_id: int):
         self.first_solver = author_name
         self.first_solver_id = author_id
-        self.first_solve_time = datetime.now.isoformat()
+        self.first_solve_time = datetime.now().isoformat()
