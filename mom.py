@@ -4,7 +4,6 @@ from discord.ext import commands
 import shutil
 import json
 import re
-import io
 from pathlib import Path
 
 from word2number import w2n
@@ -99,7 +98,7 @@ async def list(interaction: discord.Interaction):
         await interaction.response.send_message("No clues found.")
         return
     
-    await interaction.response.send_message("\n".join(f"{util.unobscure(puzzle.name)} - {puzzle.get_solve_status()}" for puzzle in author_puzzles))
+    await interaction.response.send_message("\n".join(f"{puzzle.name} - {puzzle.get_solve_status()}" for puzzle in author_puzzles))
 
 @mom.tree.command(name = "delete")
 async def delete(interaction: discord.Interaction, name: str):
@@ -170,7 +169,7 @@ async def try_solution(message: discord.Message, cleanedContent: str, matchSolut
         await message.add_reaction("❌")
         return
     
-    if solution_match.authorID == message.author.id:
+    if solution_match.author_id == message.author.id:
         await message.add_reaction("⭐") # Solved their own puzzle?
         return
     

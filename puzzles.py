@@ -1,12 +1,12 @@
 from uuid import uuid4
 from pathlib import Path
 import cryptocode as cr
-import pickle
+import json
 from datetime import datetime
 import util
 
 class PuzzleManager:
-    def __init__(self, save_data_file: str = "solutions.pickle") -> 'PuzzleManager':
+    def __init__(self, save_data_file: str = "saved_data.json") -> 'PuzzleManager':
         self.save_data_file_path = Path(save_data_file)
         self._load()
 
@@ -19,20 +19,20 @@ class PuzzleManager:
             self.solved_puzzles = []
             return
         
-        with open(self.save_data_file_path, "rb") as fp:
-            data = pickle.load(fp)
+        with open(self.save_data_file_path) as fp:
+            data = json.load(fp)
 
-        self.active_puzzles = data["active_puzzles"]
-        self.solved_puzzles = data["solved_puzzles"]
+        self.active_puzzles = [Puzzle.from_import(puzzle_data) for puzzle_data in data["active_puzzles"]]
+        self.solved_puzzles = [Puzzle.from_import(puzzle_data) for puzzle_data in data["solved_puzzles"]]
 
     def _save(self) -> None:
         data = {
-            "active_puzzles": self.active_puzzles,
-            "solved_puzzles": self.solved_puzzles
+            "active_puzzles": [puzzle.export() for puzzle in self.active_puzzles],
+            "solved_puzzles": [puzzle.export() for puzzle in self.solved_puzzles]
         }
 
-        with open(self.save_data_file_path, "wb") as fp:
-            pickle.dump(data, fp)
+        with open(self.save_data_file_path, "w") as fp:
+            json.dump(data, fp)
 
     def check_matching_hashes(self, newPuzzle: 'Puzzle') -> bool:
         for puzzle in self.active_puzzles:
@@ -102,6 +102,26 @@ class Puzzle:
         self.first_solver = None
         self.first_solver_id = None
         self.first_solve_time = None
+
+    @classmethod
+    def from_import(cls, properties: dict) -> None:
+        basic_class = cls("", 0, "", "", "", "")
+
+        for key, value in properties.items():
+            if not hasattr(basic_class, key): # Check attribute exists in object, only load known attributes
+                continue
+            
+            if key == "name":
+                value = util.unobscure(value)
+
+            setattr(basic_class, key, value)
+        
+        return basic_class
+
+    def export(self) -> dict:
+        properties = vars(self)
+        properties["name"] = util.obscure(properties["name"])
+        return properties
     
     def get_solve_status(self) -> str:
         return "Unsolved" if self.first_solver is None else f"First solved by: {self.first_solver}"
