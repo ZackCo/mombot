@@ -2,8 +2,9 @@ from uuid import uuid4
 from pathlib import Path
 import cryptocode as cr
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import util
+import pytz
 
 class PuzzleManager:
     def __init__(self, save_data_file: str = "saved_data.json") -> 'PuzzleManager':
@@ -124,7 +125,7 @@ class Puzzle:
         return properties
     
     def get_solve_status(self) -> str:
-        return "Unsolved" if self.first_solver is None else f"First solved by: {self.first_solver}"
+        return "Unsolved" if self.first_solver is None else f"First solved by {self.first_solver} at {self.first_solve_time}"
 
     def same_solution(self, other: 'Puzzle') -> bool:
         if type(self) != type(other):
@@ -143,4 +144,4 @@ class Puzzle:
     def solved(self, author_name: str, author_id: int):
         self.first_solver = author_name
         self.first_solver_id = author_id
-        self.first_solve_time = datetime.now().isoformat()
+        self.first_solve_time = datetime.now(timezone.utc).isoformat()
