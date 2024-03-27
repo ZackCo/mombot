@@ -270,6 +270,9 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
     
     if len(unknown_items) > 0 and len(found_items) > 0:
         if message and message.guild:
+            restrict_to_channel = credentials.get("restrict_to_channel", False)
+            if restrict_to_channel and message.channel.id != restrict_to_channel:
+                return
             if message:
                 await message.add_reaction("❔")
             return
