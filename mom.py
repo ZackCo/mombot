@@ -53,6 +53,8 @@ if not token or token == "REPLACE_WITH_TOKEN":
 test_guild = credentials.get("test", 0)
 print(f"Using test guild value {test_guild}")
 
+restrict_to_channel = credentials.get("restrict_to_channel", False)
+
 @mom.tree.command(name = "register")
 async def register(interaction: discord.Interaction, name: str, solved_response: str, solution_string: str = None, solution_items_npc: str = None):
     """
@@ -172,6 +174,9 @@ async def listen_for_message(message: discord.Message):
         await sync(message)
         return
     
+    if message and message.guild and restrict_to_channel and message.channel.id != restrict_to_channel:
+        return
+    
     if content and not re.search(r"[^A-Z0-9]", content) and len(content) >= 10:
         await try_solution_string(message)
         return
@@ -270,9 +275,6 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
     
     if len(unknown_items) > 0 and len(found_items) > 0:
         if message and message.guild:
-            restrict_to_channel = credentials.get("restrict_to_channel", False)
-            if restrict_to_channel and message.channel.id != restrict_to_channel:
-                return
             if message:
                 await message.add_reaction("❔")
             return
