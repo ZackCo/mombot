@@ -17,21 +17,13 @@ from datetime import datetime
 
 from word2number import w2n
 
-from cluegenerator import ClueGenerator
+import util
+import clueGenerator as cg
 
 # Discord Setup
 intents = discord.Intents.default()
 intents.message_content = True
 mom = commands.Bot(intents=intents, command_prefix="/")
-
-solutions = TinyDB("solutions.json")
-
-# Clue Generation Properties
-blank_clue_path = Path("assets/blank_clue.png")
-font_path = Path("assets/RuneScape-Chat-07.ttf")
-generated_clue_name = "generated_clue.png"
-
-clue_generator = ClueGenerator(blank_clue_path, font_path, generated_clue_name)
 
 # Load items
 with open("items.json") as fp:
@@ -43,7 +35,7 @@ if not credentialsPath.exists():
     shutil.copy2("credentials_template.json", "credentials.json")
 
 with open(credentialsPath) as fp:
-    credentials = json.load(fp)
+    credentials: dict = json.load(fp)
 
 token = credentials.get("token", "")
 if not token or token == "REPLACE_WITH_TOKEN":
@@ -54,6 +46,9 @@ test_guild = credentials.get("test", 0)
 print(f"Using test guild value {test_guild}")
 
 restrict_to_channel = credentials.get("restrict_to_channel", False)
+
+# Set up db manager
+puzzle_manager = PuzzleManager("solutions.json")
 
 @mom.tree.command(name = "register")
 async def register(interaction: discord.Interaction, name: str, solved_response: str, solution_string: str = None, solution_items_npc: str = None):
@@ -80,33 +75,13 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     except ValueError:
         return
     
-    solution = Query()
-
-    # Do this so you can't tell if an entry has a string, items, or both.
-    solution_string = solution_string or uuid.uuid4().hex
-    sorted_items_npc = sorted_items_npc or uuid.uuid4().hex
-
-    hashed_solution_string = hash(solution_string)
-    hashed_solution_items =  hash(sorted_items_npc)
-    
-    updating = solutions.search((solution.author_id == interaction.user.id) & solution.name.test(lambda s:unobscure(s).upper() == name.upper()))
-    existing = solutions.search((solution.hashed_solution_string == hashed_solution_string) | (solution.hashed_solution_items == hashed_solution_items))
-    if existing and not updating:
-        await interaction.response.send_message(f"Solution \"{existing[0]['name']}\" already exists. Either update your previous puzzle, or choose a more complex solution.")
+    # Check if puzzle exists
+    if puzzle_manager.puzzle_exists(interaction.user.id, name):
+        await interaction.response.send_message(f"You already have a puzzle with name '{name}'. To create a new puzzle use a different name, or update this puzzle with the /update command.")
         return
-
-    res = solutions.upsert({
-        "name" : obscure(name),
-        "author_id" : interaction.user.id,
-        "author_name" : interaction.user.name,
-        "hashed_solution_string" : hash(solution_string),
-        "hashed_solution_items" : hash(sorted_items_npc),
-        "secret_string" : cr.encrypt(solved_response, solution_string),
-        "secret_items" : cr.encrypt(solved_response, sorted_items_npc),
-        "first_solver" : updating[0]["first_solver"] if updating else "",
-        "first_solver_id" : updating[0]["first_solver_id"] if updating else "",
-        "first_solve_time" : updating[0]["first_solve_time"] if updating else ""
-    }, (solution.author_id == interaction.user.id) & solution.name.test(lambda s:unobscure(s).upper() == name.upper()))
+    
+    puzzle_manager.register_puzzle(name, interaction.user.id, interaction.user.name, solution_string, sorted_items_npc, solved_response)
+    await interaction.response.send_message(f"Registered new puzzle: {name}!")
 
     if updating:
         await interaction.response.send_message(f"Updated {name}!")
@@ -118,20 +93,12 @@ async def list(interaction: discord.Interaction):
     """
     List all my puzzles
     """
-    q = Query()
-    my_puzzles = solutions.search(q.author_id == interaction.user.id)
-    if len(my_puzzles) == 0:
-        await interaction.response.send_message("No clues found.")
+    author_puzzles = puzzle_manager.get_author_puzzles_status(interaction.user.id)
+    if not author_puzzles:
+        await interaction.response.send_message("You have no registered clues.")
         return
     
-    res = []
-    for p in my_puzzles:
-        line = f"{unobscure(p['name'])}"
-        if p['first_solver']:
-            line += f" - First solved by {p['first_solver']}"
-        else:
-            line += " - Unsolved"
-        res.append(line)
+    await interaction.response.send_message("\n".join(author_puzzles))
 
     await interaction.response.send_message("\n".join(res))
 
@@ -140,15 +107,19 @@ async def list(interaction: discord.Interaction, name: str):
     """
     Delete my puzzle by name.
     """
-    solution = Query()
-    my_puzzle = solutions.search((solution.author_id == interaction.user.id) & solution.name.test(lambda s:unobscure(s).upper() == name.upper()))
-    if len(my_puzzle) == 0:
-        await interaction.response.send_message(f"No clue found with name {name}.")
+    if not puzzle_manager.puzzle_exists(interaction.user.id, name):
+        await interaction.response.send_message(f"No puzzle found with name: {name}.")
         return
-    
-    for p in my_puzzle:
-        solutions.remove((solution.author_id == interaction.user.id) & (solution.name == p["name"]))
-    await interaction.response.send_message(f"Deleted {name}.")
+
+    success = puzzle_manager.delete_puzzle(interaction.user.id, name)
+    if success:
+        await interaction.response.send_message(f"Successfully deleted puzzle: {name}")
+    else:
+        await interaction.response.send_message(f"Failed to delete puzzle: {name}")
+
+@mom.tree.command(name = "update")
+async def update(interaction: discord.Interaction, name: str, solved_response: str, solution_string: str = None, solution_items_npc: str = None):
+    pass
 
 @mom.tree.command(name = "scroll")
 async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: float = 1.0):
@@ -163,7 +134,7 @@ async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: 
         A larger values reduces text size.
     """
     text_list = [clue_text] if "\\n" not in clue_text else clue_text.split("\\n")
-    img = clue_generator.generate_clue(text_list, scalar=clue_scalar) 
+    img = cg.generate_clue(text_list, scalar=clue_scalar) 
     await interaction.response.send_message(file=discord.File(img, filename=generated_clue_name))
     
 @mom.listen('on_message')
