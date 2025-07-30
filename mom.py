@@ -76,14 +76,15 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
     except ValueError:
         return
     
-    # Check if puzzle exists
-    updating = puzzle_manager.puzzle_exists(interaction.user.id, name)
-    puzzle_manager.update_puzzle(name, interaction.user.id, interaction.user.name, solution_string, sorted_items_npc, solved_response)
+    exists = puzzle_manager.puzzle_exists(name)
+    ownership = puzzle_manager.author_owns_puzzle(interaction.user.id, name)
 
-    if updating:
-        await interaction.response.send_message(f"Updated puzzle: {name}")
-    else:
-        await interaction.response.send_message(f"Registered new puzzle: {name}!")
+    if ownership or not exists:
+        puzzle_manager.update_puzzle(name, interaction.user.id, interaction.user.name, solution_string, sorted_items_npc, solved_response)
+        await interaction.response.send_message(f"Updated puzzle: {name}" if exists else f"Registered new puzzle: {name}!")
+        return
+    
+    await interaction.response.send_message(f"Another person already has a puzzle with this name, try again with a different one.")
 
 @mom.tree.command(name = "delete")
 async def list(interaction: discord.Interaction, name: str):
@@ -127,58 +128,63 @@ async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: 
     text_list = [clue_text] if "\\n" not in clue_text else clue_text.split("\\n")
     img = cg.generate_clue(text_list, scalar=clue_scalar) 
     await interaction.response.send_message(file=discord.File(img, filename=cg.generated_file_name))
-    
-@mom.listen('on_message')
-async def listen_for_message(message: discord.Message):
-    content = discord.utils.remove_markdown(message.content)
 
-    if content == "sync" and await mom.is_owner(message.author):
-        await sync(message)
+@mom.tree.command(name = "solve")
+async def solve(interaction: discord.Interaction, puzzle_name: str, solution: str):
+    """
+    Attempt to solve a puzzle
+
+    Parameters:
+    ----------
+    puzzle_name:
+        The name of the puzzle you are attempting to solve.
+    solution: 
+        Your suspected solution to the puzzle.
+    """
+    if interaction.guild and restrict_to_channel and interaction.channel.id != restrict_to_channel:
         return
     
-    if message and message.guild and restrict_to_channel and message.channel.id != restrict_to_channel:
+    if not puzzle_manager.puzzle_exists(puzzle_name):
+        interaction.message.add_reaction("❔")
         return
     
-    if content and not re.search(r"[^A-Z0-9]", content) and len(content) >= 10:
-        await try_solution_string(message)
+    if not re.search(r"[^A-Z0-9]", solution) and len(solution) >= 10:
+        clean_solution = util.hash(util.clean(solution))
+        await update_solution(interaction, puzzle_name, clean_solution)
         return
     
-    if content.count(",") > 0:
-        await try_solution_items(message, ",")
+    for delimeter in (",", "\n"):
+        if solution.count(delimeter) > 0:
+            clean_solution = await sort_items_npc(solution, delimeter)
+            await update_solution(interaction, puzzle_name, clean_solution)
 
-    if content.count("\n") > 0:
-        await try_solution_items(message, "\n")
-
-async def sync(message: discord.Message):
+@mom.tree.command(name = "sync")
+async def sync(interaction: discord.Interaction):
+    if not mom.is_owner(interaction.message.author):
+        return
+    
     guild = mom.get_guild(test_guild)
-    if guild != None:
+    if guild is not None:
         mom.tree.copy_global_to(guild=guild)
+    
     await mom.tree.sync()
     print("Synced commands to " + str(guild))
-    await message.add_reaction("🔁")
+    await interaction.message.add_reaction("🔁")
 
-async def try_solution_string(message: discord.Message):
-    content = util.clean(message.content)
-    
-    h = hash(content)
-    q = Query()
-    result = solutions.search(q.hashed_solution_string == h)
-
-    if len(result) > 0:
-        res = result[0]
-        await message.add_reaction("✅")
-        await solve_step(message, cr.decrypt(res["secret_string"], content))
-        if message.author.id != res["author_id"] and res["first_solver"] == "":
-            solutions.update({
-                "first_solver" : message.author.name,
-                "first_solver_id" : message.author.id,
-                "first_solve_time" : datetime.now().isoformat()
-            }, q.hashed_solution_string == h)
+async def update_solution(interaction: discord.Interaction, puzzle_name: str, solution: str):
+    success = puzzle_manager.check_solution(puzzle_name, solution)
+    if not success:
+        await interaction.message.add_reaction("❌")
         return
-    else:
-        await message.add_reaction("❌")
+
+    await interaction.message.add_reaction("✅")
+    if puzzle_manager.get_author_id(puzzle_name) == interaction.message.author.id or puzzle_manager.is_solved(puzzle_name): # Author solved puzzle or is already solved
         return
     
+    solution_message = puzzle_manager.solved(puzzle_name, solution, interaction.message.author.name, interaction.message.author.id)
+    for line in solution_message:
+        interaction.message.reply(line)
+
 # Parse and sort a list of items so order doesn't matter
 async def sort_items_npc(text: str, delimeter: str, message: str = None, response: str = None):
     if not text:
@@ -259,46 +265,14 @@ async def sort_items_npc(text: str, delimeter: str, message: str = None, respons
     
     return
 
-# sort_items_npc("2 coal, 8 blue partyhats, rope, diango", ",") == "2COAL-8BLUEPARTYHAT-1ROPE-DIANGO"
-
-async def try_solution_items(message: str, delimeter: str):
-    content = await sort_items_npc(message.content, delimeter, message=message)
-
-    if not content:
-        return
-
-    h = hash(content)
-    q = Query()
-    result = solutions.search(q.hashed_solution_items == h)
-
-    if len(result) > 0:
-        res = result[0]
-        await message.add_reaction("✅")
-        await solve_step(message, cr.decrypt(res["secret_items"], content))
-        if message.author.id != res["author_id"] and res["first_solver"] == "":
-            solutions.update({
-                "first_solver" : message.author.name,
-                "first_solver_id" : message.author.id,
-                "first_solve_time" : datetime.now().isoformat()
-            }, q.hashed_solution_items == h)
-        return
-    else:
-        await message.add_reaction("❌")
-        return
-    
-async def solve_step(message: discord.Message, solved_text: str):
-    solved_messages = solved_text.split("\\n")
-    for solved_message in solved_messages:
-        await message.reply(solved_message)
-
-def migrate():
-    q = Query()
-    res = solutions.all()
-    print(solutions)
-    for r in res:
-        name = r['name']
-        ob = obscure(name)
-        solutions.update({'name': ob}, q.name == name)
+# def migrate():
+#     q = Query()
+#     res = solutions.all()
+#     print(solutions)
+#     for r in res:
+#         name = r['name']
+#         ob = obscure(name)
+#         solutions.update({'name': ob}, q.name == name)
 
 def main():
     # migrate()
