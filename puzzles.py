@@ -13,11 +13,11 @@ class PuzzleManager:
         self._db = TinyDB(save_data_file)
         self._query = Query()
     
-    def register_puzzle(self, name: str, author_id: int, author_name: str, solution_string: str, sorted_items_npc: str, solved_response: str) -> None:
+    def _build_entry(self, name: str, author_id: int, author_name: str, solution_string: str, sorted_items_npc: str, solved_response: str) -> dict:
         solution_string = solution_string or uuid4().hex
         sorted_items_npc = sorted_items_npc or uuid4().hex
 
-        puzzle_id = self._db.insert({
+        return {
             "name": util.obscure(name),
             "author_id": author_id,
             "author_name": author_name,
@@ -28,7 +28,7 @@ class PuzzleManager:
             "first_solver": "",
             "first_solver_id": -1,
             "first_solver_time": ""
-        })
+        }
 
     def _get_author_puzzles(self, author_id: int) -> dict[str, Document]:
         return {puzzle.name: puzzle for puzzle in self._db.search(self._query.author_id == author_id)}
@@ -45,18 +45,19 @@ class PuzzleManager:
     def puzzle_exists(self, author_id: int, name: str) -> bool:
         return name in self._get_author_puzzles(author_id)
 
-    def get_author_puzzles_status(self, author_id: int) -> list[str]:
+    def update_puzzle(self, name: str, author_id: int, author_name: str, solution_string: str, sorted_items_npc: str, solved_response: str) -> None:
+        puzzle_ids = self._db.upsert(self._build_entry(name, author_id, author_name, solution_string, sorted_items_npc, solved_response)) # Creates the entry if it doesn't exist
+
+    def get_author_puzzles_status(self, author_id: int) -> str:
         author_puzzles = self._get_author_puzzles(author_id)
-        return [f"{puzzle_name} - {self._get_solve_status(puzzle)}" for puzzle_name, puzzle in author_puzzles]
+        if not author_puzzles:
+            return ""
+        
+        return "\n".join(f"{puzzle_name} - {self._get_solve_status(puzzle)}" for puzzle_name, puzzle in author_puzzles)
 
     def delete_puzzle(self, author_id: int, name: str) -> bool:
         return len(self._db.remove((self._query.author_id == author_id) & (self._query.name == name))) > 0
 
-    def update(self, author_id: int, name: str, ) -> None:
-        replace_index = self.active_puzzles.index(old_puzzle)
-        self.active_puzzles[replace_index] = new_puzzle
-        self._save()
-    
     def solved(self, puzzle: 'Puzzle', author_name: str, author_id: int) -> None:
         solve_index = self.active_puzzles.index(puzzle)
         solved_puzzle = self.active_puzzles.pop(solve_index)

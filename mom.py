@@ -19,6 +19,7 @@ from word2number import w2n
 
 import util
 import clueGenerator as cg
+from puzzles import PuzzleManager
 
 # Discord Setup
 intents = discord.Intents.default()
@@ -76,31 +77,13 @@ async def register(interaction: discord.Interaction, name: str, solved_response:
         return
     
     # Check if puzzle exists
-    if puzzle_manager.puzzle_exists(interaction.user.id, name):
-        await interaction.response.send_message(f"You already have a puzzle with name '{name}'. To create a new puzzle use a different name, or update this puzzle with the /update command.")
-        return
-    
-    puzzle_manager.register_puzzle(name, interaction.user.id, interaction.user.name, solution_string, sorted_items_npc, solved_response)
-    await interaction.response.send_message(f"Registered new puzzle: {name}!")
+    updating = puzzle_manager.puzzle_exists(interaction.user.id, name)
+    puzzle_manager.update_puzzle(name, interaction.user.id, interaction.user.name, solution_string, sorted_items_npc, solved_response)
 
     if updating:
-        await interaction.response.send_message(f"Updated {name}!")
+        await interaction.response.send_message(f"Updated puzzle: {name}")
     else:
-        await interaction.response.send_message(f"Registered {name}!")
-
-@mom.tree.command(name = "list")
-async def list(interaction: discord.Interaction):
-    """
-    List all my puzzles
-    """
-    author_puzzles = puzzle_manager.get_author_puzzles_status(interaction.user.id)
-    if not author_puzzles:
-        await interaction.response.send_message("You have no registered clues.")
-        return
-    
-    await interaction.response.send_message("\n".join(author_puzzles))
-
-    await interaction.response.send_message("\n".join(res))
+        await interaction.response.send_message(f"Registered new puzzle: {name}!")
 
 @mom.tree.command(name = "delete")
 async def list(interaction: discord.Interaction, name: str):
@@ -117,9 +100,17 @@ async def list(interaction: discord.Interaction, name: str):
     else:
         await interaction.response.send_message(f"Failed to delete puzzle: {name}")
 
-@mom.tree.command(name = "update")
-async def update(interaction: discord.Interaction, name: str, solved_response: str, solution_string: str = None, solution_items_npc: str = None):
-    pass
+@mom.tree.command(name = "list")
+async def list(interaction: discord.Interaction):
+    """
+    List all my puzzles
+    """
+    author_puzzles = puzzle_manager.get_author_puzzles_status(interaction.user.id)
+    if not author_puzzles:
+        await interaction.response.send_message("You have no registered puzzles.")
+        return
+    
+    await interaction.response.send_message(author_puzzles)
 
 @mom.tree.command(name = "scroll")
 async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: float = 1.0):
@@ -135,7 +126,7 @@ async def scroll(interaction: discord.Interaction, clue_text: str, clue_scalar: 
     """
     text_list = [clue_text] if "\\n" not in clue_text else clue_text.split("\\n")
     img = cg.generate_clue(text_list, scalar=clue_scalar) 
-    await interaction.response.send_message(file=discord.File(img, filename=generated_clue_name))
+    await interaction.response.send_message(file=discord.File(img, filename=cg.generated_file_name))
     
 @mom.listen('on_message')
 async def listen_for_message(message: discord.Message):

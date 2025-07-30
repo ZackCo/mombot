@@ -7,6 +7,7 @@ with contextlib.redirect_stdout(None):
 bg_image_path = Path("../assets/blank_clue.png")
 font_path = Path("../assets/RuneScape-Chat-07.ttf")
 font_colour = (255, 255, 0)
+generated_file_name = "generated_clue.png"
 
 pygame.init()
 _ = pygame.display.set_mode((1, 1), pygame.NOFRAME)
@@ -32,6 +33,6 @@ def generate_clue(text_input: list[str], line_space: int = 2, scalar: float = 1.
         bg_image.blit(text, rct)
 
     img = io.BytesIO()
-    pygame.image.save(bg_image, img)
+    pygame.image.save(bg_image, img, generated_file_name)
     img.seek(0)
     return img
